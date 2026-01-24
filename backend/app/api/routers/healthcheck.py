@@ -1,8 +1,5 @@
 from fastapi import APIRouter
 
-from fastapi import APIRouter
-
-# Define the tag here once
 router = APIRouter(tags=["healthcheck"])
 
 

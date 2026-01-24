@@ -1,0 +1,21 @@
+services:
+  pgvector:
+    image: pgvector/pgvector:pg18
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=$POSTGRES_USER
+      - POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+      # - POSTGRES_DB=$POSTGRES_DB # this automatically creates this database!
+    volumes:
+      - pgvector:/var/lib/postgresql
+      - ./config_files/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - auth-network
+
+volumes:
+  pgvector:
+
+
+networks:
+  auth-network:
