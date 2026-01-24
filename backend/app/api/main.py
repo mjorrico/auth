@@ -1,8 +1,6 @@
-import os
-
 from fastapi import FastAPI
 
-from app.api.routers import (
+from .routers import (
     healthcheck,
     websocket,
     auth,

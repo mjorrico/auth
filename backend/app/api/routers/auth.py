@@ -3,7 +3,11 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
 
 from app.modules.postgredb import db
-from app.modules.auth_tools import verify_password
+from app.modules.auth_tools import (
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+)
 
 router = APIRouter(tags=["auth"])
 security = HTTPBearer()
@@ -39,8 +43,16 @@ async def login(login_data: LoginRequest):
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password"
         )
 
+    access_token = create_access_token(
+        data={"sub": str(user["id"]), "email": user["email"]}
+    )
+    refresh_token = create_refresh_token(data={"sub": str(user["id"])})
+
     return {
         "message": "Login successful",
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
         "user_id": str(user["id"]),
         "email": user["email"],
     }
