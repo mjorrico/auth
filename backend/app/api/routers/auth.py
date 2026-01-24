@@ -14,8 +14,8 @@ security = HTTPBearer()
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
+    email: EmailStr = "verified@jordanenrico.com"
+    password: str = "SecretPassword"
 
 
 @router.get("/print-token")

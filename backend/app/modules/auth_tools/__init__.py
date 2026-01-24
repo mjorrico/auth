@@ -1,4 +1,4 @@
-from .main import verify_password
+from .password_tools import verify_password
 from .jwt_tools import create_access_token, create_refresh_token
 
 __all__ = [
