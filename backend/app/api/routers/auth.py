@@ -50,17 +50,14 @@ async def login(login_data: LoginRequest):
         )
         user = cur.fetchone()
 
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-
     if (
-        not verify_password(user["password_hash"], login_data.password)
+        not user
+        or not verify_password(user["password_hash"], login_data.password)
         or user["is_banned"]
     ):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
         )
 
     if not user["is_verified"]:

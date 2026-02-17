@@ -3,9 +3,45 @@ import psycopg2
 from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Define DB config once
+DB_HOST = os.getenv("POSTGRES_HOST", "localhost")
+DB_PORT = os.getenv("POSTGRES_PORT", "5432")
+DB_USER = os.getenv("POSTGRES_USER", "postgres")
+DB_PASSWORD = os.getenv("POSTGRES_PASSWORD", "backend")
+DB_NAME = os.getenv("POSTGRES_DB", "auth")
+print(f"Checking database {DB_NAME} at {DB_HOST}:{DB_PORT} as {DB_USER}...")
+
+try:
+    # Connect to the default 'postgres' database to manage databases
+    conn = psycopg2.connect(
+        dbname="postgres",
+        user=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT,
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+
+    with conn.cursor() as cur:
+        # Check if database exists
+        cur.execute(
+            "SELECT 1 FROM pg_catalog.pg_database WHERE datname = %s", (DB_NAME,)
+        )
+        exists = cur.fetchone()
+        if not exists:
+            print(f"Creating database {DB_NAME}...")
+            cur.execute(f'CREATE DATABASE "{DB_NAME}"')
+        else:
+            print(f"Database {DB_NAME} already exists.")
+
+    conn.close()
+except Exception as e:
+    print(f"Warning: Could not check/create database: {e}")
 
 
 class PostgresClient:
@@ -14,11 +50,12 @@ class PostgresClient:
         self.connection_pool = pool.ThreadedConnectionPool(
             minconn=1,
             maxconn=10,
-            host=os.getenv("POSTGRES_HOST", "localhost"),
-            dbname=os.getenv("POSTGRES_DB", "postgres"),
-            user=os.getenv("POSTGRES_USER", "postgres"),
-            password=os.getenv("POSTGRES_PASSWORD", "backend"),
             cursor_factory=RealDictCursor,
+            host=DB_HOST,
+            port=DB_PORT,
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD,
         )
 
     @contextmanager
