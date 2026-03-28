@@ -1,35 +1,28 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
+import logging
 
 from app.modules.postgredb import db
 from app.modules.auth_tools import (
     verify_password,
     create_access_token,
     create_refresh_token,
-    verify_access_token,
+    get_current_user_token,
+    require_capability,
 )
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["auth"])
-security = HTTPBearer()
 
 
 class LoginRequest(BaseModel):
     email: EmailStr = "verified@jordanenrico.com"
     password: str = "SecretPassword"
-
-
-async def get_current_user_token(
-    auth: HTTPAuthorizationCredentials = Depends(security),
-):
-    payload = verify_access_token(auth.credentials)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return payload
 
 
 @router.get("/protected-resource")
@@ -39,6 +32,14 @@ async def protected_resource(payload: dict = Depends(get_current_user_token)):
         "user_id": payload.get("sub"),
         "email": payload.get("email"),
     }
+
+
+@router.get("/check-create-user")
+async def check_create_user(
+    user_data: dict = Depends(require_capability("user:create")),
+):
+    logger.info(f"Payload: {payload}")
+    return
 
 
 @router.post("/login")
@@ -66,9 +67,18 @@ async def login(login_data: LoginRequest):
         )
 
     access_token = create_access_token(
-        data={"sub": str(user["id"]), "email": user["email"]}
+        data={
+            "sub": str(user["id"]),
+            "email": user["email"],
+        }
     )
-    refresh_token = create_refresh_token(data={"sub": str(user["id"])})
+    refresh_token = create_refresh_token(
+        data={
+            "sub": str(
+                user["id"],
+            )
+        }
+    )
 
     return {
         "message": "Login successful",
