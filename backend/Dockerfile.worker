@@ -1,0 +1,57 @@
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+
+ENV CONTAINER_HOME=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app
+ENV UV_CACHE_DIR=/tmp/uv-cache
+ENV UV_LINK_MODE=copy
+
+WORKDIR $CONTAINER_HOME
+
+# Create non-root user for security (same as main Dockerfile)
+# RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Install only essential system dependencies for worker tasks
+# Removed web server dependencies, added Docker CLI for worker tasks that need it
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ffmpeg \
+    poppler-utils \
+    docker.io \
+    curl \
+    ca-certificates \
+    libreoffice \
+    libreoffice-java-common \
+    && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /var/cache/apt/* && \
+    rm -rf /tmp/*
+
+# Add appuser to docker group for Docker socket access
+# RUN groupadd -g 999 docker || true && usermod -aG docker appuser
+
+# Copy pyproject.toml AND uv.lock for consistent dependency resolution
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies with same cache path and command as backend
+RUN --mount=type=cache,target=/tmp/uv-cache \
+    uv sync --frozen --no-dev
+
+# Copy the rest of the application code
+COPY . .
+
+# Create temp directory for worker file processing and set proper ownership
+RUN mkdir -p temp
+# RUN mkdir -p temp && \
+#     chown -R appuser:appuser /app && \
+#     chmod -R 755 /app && \
+#     chmod -R 775 temp
+
+# Switch to non-root user (same as main Dockerfile)
+# USER appuser
+
+# Default command for pipeline worker
+# Can be overridden in docker-compose for different worker types
+CMD uv run celery -A app.workers.simple worker --concurrency 2 --without-gossip --loglevel=info -n worker_simple -Q simple

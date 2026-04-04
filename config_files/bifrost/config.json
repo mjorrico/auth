@@ -1,0 +1,109 @@
+{
+    "$schema": "https://www.getbifrost.ai/schema",
+    "client": {
+        "enable_logging": true,
+        "disable_content_logging": false,
+        "enforce_governance_header": true,
+        "enforce_auth_on_inference": true,
+        "allowed_origins": [
+            "*"
+        ]
+    },
+    "governance": {
+        "auth_config": {
+            "admin_username": "env.BIFROST_ADMIN_USERNAME",
+            "admin_password": "env.BIFROST_ADMIN_PASSWORD",
+            "is_enabled": true,
+            "disable_auth_on_inference": true
+        },
+        "virtual_keys": [
+            {
+                "id": "production-key-001",
+                "name": "Master Bifrost Virtual Key",
+                "description": "This is the master virtual key for Bifrost",
+                "is_active": true,
+                "value": "env.BIFROST_MASTER_KEY"
+            }
+        ]
+    },
+    "config_store": {
+        "enabled": true,
+        "type": "postgres",
+        "config": {
+            "host": "env.POSTGRES_HOST",
+            "port": "env.POSTGRES_PORT",
+            "user": "env.POSTGRES_USER",
+            "password": "env.POSTGRES_PASSWORD",
+            "db_name": "env.POSTGRES_DB",
+            "ssl_mode": "disable"
+        }
+    },
+    "logs_store": {
+        "enabled": true,
+        "type": "postgres",
+        "config": {
+            "host": "env.POSTGRES_HOST",
+            "port": "env.POSTGRES_PORT",
+            "user": "env.POSTGRES_USER",
+            "password": "env.POSTGRES_PASSWORD",
+            "db_name": "env.POSTGRES_DB",
+            "ssl_mode": "disable"
+        }
+    },
+    "providers": {
+        "bedrock": {
+            "keys": [
+                {
+                    "name": "bedrock-default",
+                    "models": [
+                        "minimax-m2.1",
+                        "minimax-m2.5",
+                        "nova-lite",
+                        "nova-pro",
+                        "glm-4.7"
+                    ],
+                    "weight": 1.0,
+                    "bedrock_key_config": {
+                        "access_key": "env.AWS_ACCESS_KEY_ID",
+                        "secret_key": "env.AWS_SECRET_ACCESS_KEY",
+                        "region": "env.AWS_REGION",
+                        "deployments": {
+                            "minimax-m2.1": "minimax.minimax-m2.1",
+                            "minimax-m2.5": "minimax.minimax-m2.5",
+                            "nova-lite": "us.amazon.nova-lite-v1:0",
+                            "nova-pro": "us.amazon.nova-pro-v1:0",
+                            "glm-4.7": "zai.glm-4.7"
+                        }
+                    }
+                }
+            ]
+        },
+        "anthropic": {
+            "keys": [
+                {
+                    "name": "anthropic-personal-key",
+                    "models": [
+                        "claude-opus-4-6",
+                        "claude-sonnet-4-6",
+                        "claude-haiku-4-5"
+                    ],
+                    "weight": 1.0,
+                    "value": "env.ANTHROPIC_API_KEY"
+                }
+            ]
+        },
+        "gemini": {
+            "keys": [
+                {
+                    "name": "gemini-personal-key",
+                    "models": [
+                        "gemini-3.1-pro-preview",
+                        "gemini-3.1-flash-lite-preview"
+                    ],
+                    "weight": 1.0,
+                    "value": "env.GEMINI_API_KEY"
+                }
+            ]
+        }
+    }
+}

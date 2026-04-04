@@ -1,17 +1,166 @@
+x-base-config: &base-config
+  restart: always
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   backend:
+    container_name: backend
+    <<: *base-config
     build:
       context: ./backend
       dockerfile: Dockerfile
     volumes:
-      - ./backend/app:/app/app
+      - ./backend/app:/app/app # Comment this on production
+      - backend-temp:/app/temp
     ports:
       - "8000:8000"
     env_file:
-      - ./backend/.env
+      - .env.backend
     networks:
       - pgvector_network
+      - auth_network
+
+  worker:
+    image: worker
+    container_name: worker
+    <<: *base-config
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    env_file:
+      - .env
+    environment:
+      # Worker-specific optimizations
+      - CELERY_WORKER_PREFETCH_MULTIPLIER=1
+      - CELERY_WORKER_MAX_TASKS_PER_CHILD=100
+      - CELERY_WORKER_DISABLE_RATE_LIMITS=True
+      - CELERY_OPTIMIZATION=1
+      - OMP_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
+    volumes:
+      - ./backend/app:/app/app # Comment this on production
+      - backend-temp:/app/temp # Dedicated volume for worker temp files
+    depends_on:
+      - broker
+      - redis
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+        reservations:
+          memory: 1.5G
+    networks:
+      - auth_network
+
+  broker:
+    image: rabbitmq:alpine
+    container_name: broker
+    <<: *base-config
+    volumes:
+      - ./config_files/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    ports:
+      - 5672:5672
+      - 15675:15672
+      - 15674:15674
+    command:
+      - sh
+      - -c
+      - rabbitmq-plugins enable rabbitmq_web_stomp && rabbitmq-plugins enable rabbitmq_web_stomp_examples && rabbitmq-server
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    networks:
+      - auth_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    <<: *base-config
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    networks:
+      - auth_network
+
+  flower:
+    container_name: flower
+    <<: *base-config
+    image: mher/flower:latest
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_ADDRESS}
+      - FLOWER_UNAUTHENTICATED_API=true
+      - FLOWER_PORT=8888
+    ports:
+      - 8888:8888
+    depends_on:
+      broker:
+        condition: service_started
+        required: true
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+    networks:
+      - auth_network
+
+  bifrost:
+    image: maximhq/bifrost:v1.4.18
+    container_name: bifrost
+    <<: *base-config
+    environment:
+      - BIFROST_ADMIN_USERNAME=${BIFROST_ADMIN_USERNAME}
+      - BIFROST_ADMIN_PASSWORD=${BIFROST_ADMIN_PASSWORD}
+      - BIFROST_MASTER_KEY=${BIFROST_MASTER_KEY}
+      - POSTGRES_HOST=${BIFROST_POSTGRES_HOST}
+      - POSTGRES_PORT=${BIFROST_POSTGRES_PORT}
+      - POSTGRES_USER=${BIFROST_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${BIFROST_POSTGRES_PASSWORD}
+      - POSTGRES_DB=${BIFROST_POSTGRES_DB}
+      - AWS_ACCESS_KEY_ID=${BIFROST_AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${BIFROST_AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${BIFROST_AWS_REGION}
+      - ANTHROPIC_API_KEY=${BIFROST_ANTHROPIC_API_KEY}
+      - GEMINI_API_KEY=${BIFROST_GEMINI_API_KEY}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config_files/bifrost/config.json:/app/data/config.json
+    networks:
+      - pgvector_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
+volumes:
+  redis-data:
+  backend-temp:
+
 
 networks:
   pgvector_network:
     external: true
+  auth_network:
+    driver: bridge
